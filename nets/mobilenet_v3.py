@@ -98,8 +98,8 @@ class InvertedResidual(nn.Module):
                 nn.BatchNorm2d(hidden_dim),
                 h_swish() if use_hs else nn.ReLU(inplace=True),
                 # Squeeze-and-Excite
-                # zhongxia modify: change SE to ECA_H Layer
-                ECA_H_Layer(hidden_dim) if use_se else nn.Identity(),
+                # zhongxia modify: change SELayer to ECA_H_Layer
+                SELayer(hidden_dim) if use_se else nn.Identity(),
                 # pw-linear
                 nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False),
                 nn.BatchNorm2d(oup),
@@ -118,7 +118,7 @@ class InvertedResidual(nn.Module):
 
                 # Squeeze-and-Excite
                 # zhongxia modify: change SE to ECA_H Layer
-                ECA_H_Layer(hidden_dim) if use_se else nn.Identity(),
+                SELayer(hidden_dim) if use_se else nn.Identity(),
 
                 h_swish() if use_hs else nn.ReLU(inplace=True),
 
