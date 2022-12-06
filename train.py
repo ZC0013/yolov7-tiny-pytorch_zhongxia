@@ -93,8 +93,21 @@ if __name__ == "__main__":
     #      可以设置mosaic=True，直接随机初始化参数开始训练，但得到的效果仍然不如有预训练的情况。（像COCO这样的大数据集可以这样做）
     #   2、了解imagenet数据集，首先训练分类模型，获得网络的主干部分权值，分类模型的 主干部分 和该模型通用，基于此进行训练。
     #----------------------------------------------------------------------------------------------------------------------------#
-    model_path      = 'model_data/yolov7_tiny_weights.pth'
+    # model_path = ''
+    # pre_backbone_path = ''
+    # model_path      = 'model_data/new_weights/yolov7_tiny_weights.pth'
+    # pre_backbone_path = 'model_data/new_weights/yolov4_mobilenet_v3_voc.pth'
+    # model_path      = 'model_data/yolov7_tiny_weights.pth'
+    # pre_backbone_path = 'model_data/yolov4_mobilenet_v3_voc.pth'
+    model_path      = 'logs/last_epoch_weights.pth'
+    pre_backbone_path      = 'logs/last_epoch_weights.pth'
     #------------------------------------------------------#
+    #--------zhongxia-----------------------#
+    #   所使用的主干特征提取网络
+    #   mobilenetv3
+    #   ghostnet
+    #-------------------------------#
+    backbone        = "mobilenetv3"
     #   input_shape     输入的shape大小，一定要是32的倍数
     #------------------------------------------------------#
     input_shape     = [640, 640]
@@ -162,7 +175,7 @@ if __name__ == "__main__":
     #   Freeze_batch_size   模型冻结训练的batch_size
     #                       (当Freeze_Train=False时失效)
     #------------------------------------------------------------------#
-    Init_Epoch          = 0
+    Init_Epoch          = 50
     Freeze_Epoch        = 50
     Freeze_batch_size   = 32
     #------------------------------------------------------------------#
@@ -229,8 +242,9 @@ if __name__ == "__main__":
     #   num_workers     用于设置是否使用多线程读取数据
     #                   开启后会加快数据读取速度，但是会占用更多内存
     #                   内存较小的电脑可以设置为2或者0  
+    #                   max_num_workers == 12
     #------------------------------------------------------------------#
-    num_workers         = 4
+    num_workers         = 12
 
     #------------------------------------------------------#
     #   train_annotation_path   训练图片路径和标签
@@ -276,7 +290,7 @@ if __name__ == "__main__":
     #------------------------------------------------------#
     #   创建yolo模型
     #------------------------------------------------------#
-    model = YoloBody(anchors_mask, num_classes, pretrained=pretrained)
+    model = YoloBody(anchors_mask, num_classes, backbone = backbone, pretrained=pretrained)
     if not pretrained:
         weights_init(model)
     if model_path != '':
@@ -285,13 +299,30 @@ if __name__ == "__main__":
         #------------------------------------------------------#
         if local_rank == 0:
             print('Load weights {}.'.format(model_path))
+            print('Load weights {}.'.format(pre_backbone_path))
         
-        #------------------------------------------------------#
-        #   根据预训练权重的Key和模型的Key进行加载
-        #------------------------------------------------------#
         model_dict      = model.state_dict()
+        bock_load_key, bock_no_load_key, load_key, no_load_key, temp_dict = [], [], [], [], {}
+        #------------------------------------------------------#
+        #   优先加载替换的主干网络权重 281
+        #------------------------------------------------------#
+        if pre_backbone_path != model_path:
+            print('加载主干网络权重')
+            pretrained_backbone_dict = torch.load(pre_backbone_path, map_location = device)
+            for k, v in pretrained_backbone_dict.items():
+                if k in model_dict.keys() and np.shape(model_dict[k]) == np.shape(v):
+                    temp_dict[k] = v
+                    bock_load_key.append(k)
+                    print(k)
+                else:
+                    bock_no_load_key.append(k)
+            if local_rank == 0:
+                print("\nSuccessful Load Backbone Key:", str(bock_load_key)[:500], "……\nSuccessful Load Key Num:", len(bock_load_key))
+                print("\nFail To Load Backbone Key:", str(bock_no_load_key)[:500], "……\nFail To Load Key num:", len(bock_no_load_key))
+        #------------------------------------------------------#
+        #   根据预训练权重的Key和模型的Key进行加载 194
+        #------------------------------------------------------#
         pretrained_dict = torch.load(model_path, map_location = device)
-        load_key, no_load_key, temp_dict = [], [], {}
         for k, v in pretrained_dict.items():
             if k in model_dict.keys() and np.shape(model_dict[k]) == np.shape(v):
                 temp_dict[k] = v

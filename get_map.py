@@ -68,11 +68,11 @@ if __name__ == "__main__":
     #   指向VOC数据集所在的文件夹
     #   默认指向根目录下的VOC数据集
     #-------------------------------------------------------#
-    VOCdevkit_path  = 'VOCdevkit'
+    VOCdevkit_path  = '/home/CV/datasets/VOCdevkit'
     #-------------------------------------------------------#
     #   结果输出的文件夹，默认为map_out
     #-------------------------------------------------------#
-    map_out_path    = 'map_out'
+    map_out_path    = 'map_out_V1'
 
     image_ids = open(os.path.join(VOCdevkit_path, "VOC2007/ImageSets/Main/test.txt")).read().strip().split()
 

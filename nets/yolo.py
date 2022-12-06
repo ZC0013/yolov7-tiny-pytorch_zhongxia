@@ -2,7 +2,68 @@ import torch
 import torch.nn as nn
 
 from nets.backbone import Backbone, Multi_Concat_Block, Conv
+from .mobilenet_v2 import mobilenet_v2
+from .mobilenet_v3 import mobilenet_v3
+from .ghostnet import ghostnet
 
+class MobileNetV2(nn.Module):
+    def __init__(self, pretrained = False):
+        super(MobileNetV2, self).__init__()
+        self.model = mobilenet_v2(pretrained=pretrained)
+
+    def forward(self, x):
+        out3 = self.model.features[:7](x)
+        out4 = self.model.features[7:14](out3)
+        out5 = self.model.features[14:18](out4)
+        return out3, out4, out5
+
+class MobileNetV3(nn.Module):
+    def __init__(self, pretrained = False):
+        super(MobileNetV3, self).__init__()
+        self.model = mobilenet_v3(pretrained=pretrained)
+
+    def forward(self, x):
+        out3 = self.model.features[:7](x)
+        out4 = self.model.features[7:13](out3)
+        out5 = self.model.features[13:16](out4)
+        return out3, out4, out5
+
+class GhostNet(nn.Module):
+    def __init__(self, pretrained=True):
+        super(GhostNet, self).__init__()
+        model = ghostnet()
+        if pretrained:
+            state_dict = torch.load("model_data/ghostnet_weights.pth")
+            model.load_state_dict(state_dict)
+        del model.global_pool
+        del model.conv_head
+        del model.act2
+        del model.classifier
+        del model.blocks[9]
+        self.model = model
+
+    def forward(self, x):
+        x = self.model.conv_stem(x)
+        x = self.model.bn1(x)
+        x = self.model.act1(x)
+        feature_maps = []
+
+        for idx, block in enumerate(self.model.blocks):
+            x = block(x)
+            if idx in [2,4,6,8]:
+                feature_maps.append(x)
+        return feature_maps[1:]
+
+def conv_dw(filter_in, filter_out, stride = 1):
+    return nn.Sequential(
+        nn.Conv2d(filter_in, filter_in, 3, stride, 1, groups=filter_in, bias=False),
+        nn.BatchNorm2d(filter_in),
+        nn.ReLU6(inplace=True),
+
+        nn.Conv2d(filter_in, filter_out, 1, 1, 0, bias=False),
+        nn.BatchNorm2d(filter_out),
+        nn.ReLU6(inplace=True),
+    )
 
 class SPPCSPC(nn.Module):
     # CSP https://github.com/WongKinYiu/CrossStagePartialNetworks
@@ -43,7 +104,7 @@ def fuse_conv_and_bn(conv, bn):
 #   yolo_body
 #---------------------------------------------------#
 class YoloBody(nn.Module):
-    def __init__(self, anchors_mask, num_classes, pretrained=False):
+    def __init__(self, anchors_mask, num_classes, backbone="mobilenetv3", pretrained=False):
         super(YoloBody, self).__init__()
         #-----------------------------------------------#
         #   定义了不同yolov7-tiny的参数
@@ -58,24 +119,41 @@ class YoloBody(nn.Module):
         #   输入图片是640, 640, 3
         #-----------------------------------------------#
 
-        #---------------------------------------------------#   
-        #   生成主干模型
-        #   获得三个有效特征层，他们的shape分别是：
-        #   80, 80, 512
-        #   40, 40, 1024
-        #   20, 20, 1024
-        #---------------------------------------------------#
-        self.backbone   = Backbone(transition_channels, block_channels, n, pretrained=pretrained)
+        if backbone == "yolov7-tiny":
+            #---------------------------------------------------#   
+            #   生成主干模型
+            #   获得三个有效特征层，他们的shape分别是：
+            #   80, 80, 128  transition_channels * 8
+            #   40, 40, 256  transition_channels * 16
+            #   20, 20, 512  transition_channels * 32
+            #---------------------------------------------------#
+            self.backbone   = Backbone(transition_channels, block_channels, n, pretrained=pretrained)
+            in_filters      = [128, 256, 512]
+        elif backbone == "mobilenetv2":
+            #---------------------------------------------------#   
+            #   52,52,32；26,26,92；13,13,320
+            #---------------------------------------------------#
+            self.backbone   = MobileNetV2(pretrained=pretrained)
+            in_filters      = [32, 96, 320]
+        elif backbone == "mobilenetv3":
+            print('backbone ---- mobilenetv3')
+            #---------------------------------------------------#   
+            #   52,52,40；26,26,112；13,13,160
+            #---------------------------------------------------#
+            self.backbone   = MobileNetV3(pretrained=pretrained)
+            in_filters      = [40, 112, 160]
+        else:
+            raise ValueError('Unsupported backbone - `{}`, Use mobilenetv1, mobilenetv2, mobilenetv3, ghostnet, vgg, densenet121, densenet169, densenet201, resnet50.'.format(backbone))
 
         self.upsample   = nn.Upsample(scale_factor=2, mode="nearest")
 
-        self.sppcspc                = SPPCSPC(transition_channels * 32, transition_channels * 16)
+        self.sppcspc                = SPPCSPC(in_filters[2], transition_channels * 16)
         self.conv_for_P5            = Conv(transition_channels * 16, transition_channels * 8)
-        self.conv_for_feat2         = Conv(transition_channels * 16, transition_channels * 8)
+        self.conv_for_feat2         = Conv(in_filters[1], transition_channels * 8)
         self.conv3_for_upsample1    = Multi_Concat_Block(transition_channels * 16, panet_channels * 4, transition_channels * 8, e=e, n=n, ids=ids)
 
         self.conv_for_P4            = Conv(transition_channels * 8, transition_channels * 4)
-        self.conv_for_feat1         = Conv(transition_channels * 8, transition_channels * 4)
+        self.conv_for_feat1         = Conv(in_filters[0], transition_channels * 4)
         self.conv3_for_upsample2    = Multi_Concat_Block(transition_channels * 8, panet_channels * 2, transition_channels * 4, e=e, n=n, ids=ids)
 
         self.down_sample1           = Conv(transition_channels * 4, transition_channels * 8, k=3, s=2)

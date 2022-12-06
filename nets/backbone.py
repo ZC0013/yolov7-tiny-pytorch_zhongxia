@@ -6,13 +6,31 @@ def autopad(k, p=None):
     if p is None:
         p = k // 2 if isinstance(k, int) else [x // 2 for x in k] 
     return p
+
+class h_sigmoid(nn.Module):
+    def __init__(self, inplace=True):
+        super(h_sigmoid, self).__init__()
+        self.relu = nn.ReLU6(inplace=inplace)
+
+    def forward(self, x):
+        return self.relu(x + 3) / 6
+
+
+class h_swish(nn.Module):
+    def __init__(self, inplace=True):
+        super(h_swish, self).__init__()
+        self.sigmoid = h_sigmoid(inplace=inplace)
+
+    def forward(self, x):
+        return x * self.sigmoid(x)
     
 class Conv(nn.Module):
-    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=nn.LeakyReLU(0.1, inplace=True)):  # ch_in, ch_out, kernel, stride, padding, groups
+    # zhongxia change act from nn.LeakyReLU(0.1, inplace=True) to h_swish()
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=h_swish()):  # ch_in, ch_out, kernel, stride, padding, groups
         super(Conv, self).__init__()
         self.conv   = nn.Conv2d(c1, c2, k, s, autopad(k, p), groups=g, bias=False)
         self.bn     = nn.BatchNorm2d(c2, eps=0.001, momentum=0.03)
-        self.act    = nn.LeakyReLU(0.1, inplace=True) if act is True else (act if isinstance(act, nn.Module) else nn.Identity())
+        self.act    = h_swish() if act is True else (act if isinstance(act, nn.Module) else nn.Identity())
 
     def forward(self, x):
         return self.act(self.bn(self.conv(x)))
@@ -100,7 +118,7 @@ class Backbone(nn.Module):
         x = self.dark4(x)
         feat2 = x
         #-----------------------------------------------#
-        #   dark5的输出为20, 20, 1024，是一个有效特征层
+        #   dark5的输出为20, 20, 512，是一个有效特征层
         #-----------------------------------------------#
         x = self.dark5(x)
         feat3 = x
