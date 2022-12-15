@@ -95,12 +95,14 @@ if __name__ == "__main__":
     #----------------------------------------------------------------------------------------------------------------------------#
     # model_path = ''
     # pre_backbone_path = ''
-    # model_path      = 'model_data/new_weights/yolov7_tiny_weights.pth'
-    # pre_backbone_path = 'model_data/new_weights/yolov4_mobilenet_v3_voc.pth'
+    model_path      = 'model_data/new_weights/yolov7_tiny_weights.pth'
+    pre_backbone_path = 'model_data/new_weights/yolov4_mobilenet_v3_voc.pth'
     # model_path      = 'model_data/yolov7_tiny_weights.pth'
     # pre_backbone_path = 'model_data/yolov4_mobilenet_v3_voc.pth'
     model_path      = '../restult/yolov7-tiny_zhongxia/logs_YOLOv7_M_SE/best_epoch_weights.pth'
     pre_backbone_path      = '../restult/yolov7-tiny_zhongxia/logs_YOLOv7_M_SE/best_epoch_weights.pth'
+    # model_path      = 'logs/last_epoch_weights.pth'
+    # pre_backbone_path      = 'logs/last_epoch_weights.pth'
     #------------------------------------------------------#
     #--------zhongxia-----------------------#
     #   所使用的主干特征提取网络

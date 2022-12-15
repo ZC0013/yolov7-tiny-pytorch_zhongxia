@@ -72,13 +72,17 @@ class eca_block(nn.Module):
         kernel_size = kernel_size if kernel_size % 2 else kernel_size + 1
         
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
         self.conv = nn.Conv1d(1, 1, kernel_size=kernel_size, padding=(kernel_size - 1) // 2, bias=False) 
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        y = self.avg_pool(x)
-        y = self.conv(y.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1)
-        y = self.sigmoid(y)
+        avg_out = self.avg_pool(x)
+        avg_out = self.conv(avg_out.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1)
+        max_out = self.max_pool(x)
+        max_out = self.conv(max_out.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1)
+        out = avg_out + max_out
+        y = self.sigmoid(out)
         return x * y.expand_as(x)
 
 class CA_Block(nn.Module):
