@@ -95,10 +95,10 @@ if __name__ == "__main__":
     #----------------------------------------------------------------------------------------------------------------------------#
     # model_path = ''
     # pre_backbone_path = ''
-    model_path      = 'model_data/pre-trained_weights/yolov7_tiny_weights.pth'
-    pre_backbone_path = 'model_data/pre-trained_weights/yolov4_mobilenet_v3_voc.pth'
-    # model_path      = 'model_data/yolov7_tiny_weights.pth'
-    # pre_backbone_path = 'model_data/yolov4_mobilenet_v3_voc.pth'
+    # model_path      = 'model_data/pre-trained_weights/yolov7_tiny_weights.pth'
+    # pre_backbone_path = 'model_data/pre-trained_weights/yolov4_mobilenet_v3_voc.pth'
+    model_path      = 'logs/last_epoch_weights_MobileNetv3_SA_NoPre.pth'
+    pre_backbone_path = 'logs/last_epoch_weights_MobileNetv3_SA_NoPre.pth'
     # model_path      = '../restult/yolov7-tiny_zhongxia/logs_YOLOv7_M_SE/best_epoch_weights.pth'
     # pre_backbone_path      = '../restult/yolov7-tiny_zhongxia/logs_YOLOv7_M_SE/best_epoch_weights.pth'
     # model_path      = 'logs/last_epoch_weights.pth'
@@ -177,7 +177,7 @@ if __name__ == "__main__":
     #   Freeze_batch_size   模型冻结训练的batch_size
     #                       (当Freeze_Train=False时失效)
     #------------------------------------------------------------------#
-    Init_Epoch          = 50
+    Init_Epoch          = 0
     Freeze_Epoch        = 50
     Freeze_batch_size   = 32
     #------------------------------------------------------------------#
@@ -294,6 +294,7 @@ if __name__ == "__main__":
     #------------------------------------------------------#
     model = YoloBody(anchors_mask, num_classes, backbone = backbone, pretrained=pretrained)
     if not pretrained:
+        print('no pretrained ... weights_init {}.')
         weights_init(model)
     if model_path != '':
         #------------------------------------------------------#

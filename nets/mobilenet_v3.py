@@ -120,6 +120,86 @@ class sa_layer(nn.Module):
         out = self.channel_shuffle(out, 2)
         return out
 
+# ------------------------------------------
+# zhongxia LCSSG_Layer
+class ChannelAttention(nn.Module):
+    def __init__(self, channel, b=1, gamma=2):
+        super(ChannelAttention, self).__init__()
+        kernel_size = int(abs((math.log(channel, 2) + b) / gamma))
+        kernel_size = kernel_size if kernel_size % 2 else kernel_size + 1
+        
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+        self.conv = nn.Conv1d(1, 1, kernel_size=kernel_size, padding=(kernel_size - 1) // 2, bias=False) 
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        avg_out = self.avg_pool(x)
+        avg_out = self.conv(avg_out.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1)
+        max_out = self.max_pool(x)
+        max_out = self.conv(max_out.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1)
+        out = avg_out + max_out
+        y = self.sigmoid(out)
+        return x * y.expand_as(x)
+
+class SpatialAttention(nn.Module):
+    def __init__(self, gate_channel, reduction_ratio=16, dilation_conv_num=2, dilation_val=4):
+        super(SpatialAttention, self).__init__()
+        self.gate_s = nn.Sequential()
+        self.gate_s.add_module( 'gate_s_conv_reduce0', nn.Conv2d(gate_channel, gate_channel//reduction_ratio, kernel_size=1))
+        self.gate_s.add_module( 'gate_s_bn_reduce0',	nn.BatchNorm2d(gate_channel//reduction_ratio) )
+        self.gate_s.add_module( 'gate_s_relu_reduce0',nn.ReLU() )
+        for i in range( dilation_conv_num ):
+            self.gate_s.add_module( 'gate_s_conv_di_%d'%i, nn.Conv2d(gate_channel//reduction_ratio, gate_channel//reduction_ratio, kernel_size=3, \
+						padding=dilation_val, dilation=dilation_val) )
+            self.gate_s.add_module( 'gate_s_bn_di_%d'%i, nn.BatchNorm2d(gate_channel//reduction_ratio) )
+            self.gate_s.add_module( 'gate_s_relu_di_%d'%i, nn.ReLU() )
+        self.gate_s.add_module( 'gate_s_conv_final', nn.Conv2d(gate_channel//reduction_ratio, 1, kernel_size=1) )
+
+    def forward(self, in_tensor):
+        return self.gate_s( in_tensor ).expand_as(in_tensor)
+
+class LCSSG_Layer(nn.Module):
+    def __init__(self, channel, groups=4):
+        super(LCSSG_Layer, self).__init__()
+        self.groups = groups
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.channelattention = ChannelAttention(channel // (2 * groups))
+        self.spatialattention = SpatialAttention(channel // (2 * groups))
+
+        self.sigmoid = nn.Sigmoid()
+
+    @staticmethod
+    def channel_shuffle(x, groups):
+        b, c, h, w = x.shape
+
+        x = x.reshape(b, groups, -1, h, w)
+        x = x.permute(0, 2, 1, 3, 4)
+
+        # flatten
+        x = x.reshape(b, -1, h, w)
+        return x
+
+    def forward(self, x):
+        b, c, h, w = x.shape
+
+        x = x.reshape(b * self.groups, -1, h, w)
+        x_0, x_1 = x.chunk(2, dim=1)
+
+        # channel attention
+        xn = self.channelattention(x_0)
+
+        # spatial attention
+        xs = self.spatialattention(x_1)
+        xs = x_1 * self.sigmoid(xs)
+
+        # concatenate along channel axis
+        out = torch.cat([xn, xs], dim=1)
+        out = out.reshape(b, -1, h, w)
+
+        out = self.channel_shuffle(out, 2)
+        return out
+
 def conv_3x3_bn(inp, oup, stride):
     return nn.Sequential(
         nn.Conv2d(inp, oup, 3, stride, 1, bias=False),
@@ -151,7 +231,7 @@ class InvertedResidual(nn.Module):
                 h_swish() if use_hs else nn.ReLU(inplace=True),
                 # Squeeze-and-Excite
                 # zhongxia modify: change SELayer to ECA_H_Layer
-                SELayer(hidden_dim) if use_se else nn.Identity(),
+                sa_layer(hidden_dim) if use_se else nn.Identity(),
                 # pw-linear
                 nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False),
                 nn.BatchNorm2d(oup),
@@ -170,7 +250,7 @@ class InvertedResidual(nn.Module):
 
                 # Squeeze-and-Excite
                 # zhongxia modify: change SE to ECA_H Layer
-                SELayer(hidden_dim) if use_se else nn.Identity(),
+                sa_layer(hidden_dim) if use_se else nn.Identity(),
 
                 h_swish() if use_hs else nn.ReLU(inplace=True),
 

@@ -118,6 +118,6 @@ def fit_one_epoch(model_train, model, ema, yolo_loss, loss_history, eval_callbac
             
         if len(loss_history.val_loss) <= 1 or (val_loss / epoch_step_val) <= min(loss_history.val_loss):
             print('Save best model to best_epoch_weights.pth')
-            torch.save(save_state_dict, os.path.join(save_dir, "best_epoch_weights.pth"))
+            torch.save(save_state_dict, os.path.join(save_dir, "best_epoch_weights_MobileNetv3_SA_NoPre.pth"))
             
-        torch.save(save_state_dict, os.path.join(save_dir, "last_epoch_weights.pth"))
+        torch.save(save_state_dict, os.path.join(save_dir, "last_epoch_weights_MobileNetv3_SA_NoPre.pth"))

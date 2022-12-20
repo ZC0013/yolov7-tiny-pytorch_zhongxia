@@ -72,7 +72,7 @@ if __name__ == "__main__":
     #-------------------------------------------------------#
     #   结果输出的文件夹，默认为map_out
     #-------------------------------------------------------#
-    map_out_path    = '../restult/yolov7-tiny_zhongxia/'
+    map_out_path    = '../restult/yolov7-tiny_zhongxia/logs_YOLOV7t_M_LCSSG_NoPreTrained'
 
     image_ids = open(os.path.join(VOCdevkit_path, "VOC2007/ImageSets/Main/test.txt")).read().strip().split()
 
